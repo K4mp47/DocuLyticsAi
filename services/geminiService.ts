@@ -119,7 +119,7 @@ async function extractAllTransactions(
         responseMimeType: "application/json",
         responseSchema: extractionSchema,
         temperature: 0.0, // Zero temperature for maximum determinism
-        maxOutputTokens: 8192 * 6,
+        maxOutputTokens: 8192 * 24,
         safetySettings: [
           {
             category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
