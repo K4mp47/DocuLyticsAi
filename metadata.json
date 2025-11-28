@@ -1,0 +1,5 @@
+{
+  "name": "DocuLytics AI",
+  "description": "Intelligent PDF transaction extraction and analytics platform powered by Gemini 2.5.",
+  "requestFramePermissions": []
+}
