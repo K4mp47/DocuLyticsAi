@@ -1,6 +1,11 @@
 <div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://raw.githubusercontent.com/K4mp47/DocuLyticsAi/refs/heads/main/assets/images/image.png" />
+  <img 
+    src="https://raw.githubusercontent.com/K4mp47/DocuLyticsAi/refs/heads/main/assets/images/image.png"
+    alt="GHBanner"
+    style="max-width: 100%; height: auto;"
+  />
 </div>
+
 
 # Run and deploy your AI Studio app
 
