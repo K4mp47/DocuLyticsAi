@@ -1,14 +1,14 @@
 import {
   GoogleGenAI,
-  Type,
-  Schema,
-  HarmCategory,
   HarmBlockThreshold,
+  HarmCategory,
+  Schema,
+  Type,
 } from "@google/genai";
-import { Transaction, ExtractionResult } from "../types";
+import { ExtractionResult, Transaction } from "@/types";
 
 // Using Flash for better instruction following and reliability
-const MODEL_NAME = "gemini-2.5-flash";
+const MODEL_NAME = "gemini-2.5-pro";
 
 // Schema for the initial metadata scan
 const metadataSchema: Schema = {
@@ -137,7 +137,10 @@ export const extractDataFromPDF = async (
           const key =
             item.id && item.id.length > 2
               ? item.id
-              : `${item.date}-${item.amount}-${item.description?.substring(0, 10)}`;
+              : `${item.date}-${item.amount}-${item.description?.substring(
+                  0,
+                  10,
+                )}`;
           return [key, item];
         }),
       ).values(),
