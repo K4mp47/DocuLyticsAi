@@ -8,7 +8,7 @@ import {
 import { ExtractionResult, Transaction } from "@/types";
 
 // Using 1.5 Pro for massive context window and high reliability on full documents
-const MODEL_NAME = "gemini-1.5-pro";
+const MODEL_NAME = "gemini-2.5-flash-lite";
 
 // Schema for full extraction
 const extractionSchema: Schema = {
