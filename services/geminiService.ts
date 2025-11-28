@@ -7,7 +7,7 @@ import {
 } from "@google/genai";
 import { ExtractionResult, Transaction } from "@/types";
 
-// Using 1.5 Pro for massive context window and high reliability on full documents
+// Using 2.5 flash lite for massive context window and high reliability on full documents
 const MODEL_NAME = "gemini-2.5-flash-lite";
 
 // Schema for full extraction
@@ -107,18 +107,19 @@ async function extractAllTransactions(
   try {
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
-      contents: {
-        parts: [
-          { inlineData: { mimeType, data: base64Data } },
-          { text: prompt },
-        ],
-      },
+      contents: [
+        {
+          parts: [
+            { inlineData: { mimeType, data: base64Data } },
+            { text: prompt },
+          ],
+        },
+      ],
       config: {
         responseMimeType: "application/json",
         responseSchema: extractionSchema,
         temperature: 0.0, // Zero temperature for maximum determinism
-        // @ts-ignore
-        maxOutputTokens: 8192,
+        maxOutputTokens: 8192 * 6,
         safetySettings: [
           {
             category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
@@ -140,9 +141,10 @@ async function extractAllTransactions(
       },
     });
 
-    if (!response.text) return { transactions: [], currency: "EUR" };
+    const text = response.text;
+    if (!text) return { transactions: [], currency: "EUR" };
 
-    const data = JSON.parse(response.text);
+    const data = JSON.parse(text);
     return {
       transactions: data.transactions || [],
       currency: data.currency || "EUR",
