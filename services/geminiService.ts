@@ -7,33 +7,17 @@ import {
 } from "@google/genai";
 import { ExtractionResult, Transaction } from "@/types";
 
-// Using Flash for better instruction following and reliability
-const MODEL_NAME = "gemini-2.5-pro";
+// Using 1.5 Pro for massive context window and high reliability on full documents
+const MODEL_NAME = "gemini-1.5-pro";
 
-// Schema for the initial metadata scan
-const metadataSchema: Schema = {
+// Schema for full extraction
+const extractionSchema: Schema = {
   type: Type.OBJECT,
   properties: {
-    startYear: {
-      type: Type.INTEGER,
-      description: "The year of the earliest transaction in the document",
-    },
-    endYear: {
-      type: Type.INTEGER,
-      description: "The year of the latest transaction in the document",
-    },
     currency: {
       type: Type.STRING,
       description: "The main currency code (e.g. EUR, USD)",
     },
-  },
-  required: ["startYear", "endYear", "currency"],
-};
-
-// Schema for individual chunk extraction
-const chunkSchema: Schema = {
-  type: Type.OBJECT,
-  properties: {
     transactions: {
       type: Type.ARRAY,
       items: {
@@ -46,25 +30,12 @@ const chunkSchema: Schema = {
           amount: { type: Type.NUMBER },
           currency: { type: Type.STRING },
         },
-        required: ["date", "amount"],
+        required: ["date", "amount", "description"],
       },
     },
   },
-  required: ["transactions"],
+  required: ["transactions", "currency"],
 };
-
-interface DocMetadata {
-  startYear: number;
-  endYear: number;
-  currency: string;
-}
-
-interface DateRange {
-  startDate: string;
-  endDate: string;
-  year: number;
-  quarter: number;
-}
 
 export const extractDataFromPDF = async (
   base64Data: string,
@@ -76,61 +47,14 @@ export const extractDataFromPDF = async (
   const ai = new GoogleGenAI({ apiKey });
 
   try {
-    // Step 1: Analyze Document Structure (Date Range)
-    const metadata = await getDocumentMetadata(ai, base64Data, mimeType);
-    console.log("Document Metadata:", metadata);
+    // Single pass extraction using the high-context model
+    const result = await extractAllTransactions(ai, base64Data, mimeType);
 
-    const chunks: DateRange[] = [];
-
-    if (metadata.startYear && metadata.endYear) {
-      // Split each year into Quarters to drastically reduce output token size per request
-      for (let y = metadata.startYear; y <= metadata.endYear; y++) {
-        chunks.push(
-          {
-            year: y,
-            quarter: 1,
-            startDate: `${y}-01-01`,
-            endDate: `${y}-03-31`,
-          },
-          {
-            year: y,
-            quarter: 2,
-            startDate: `${y}-04-01`,
-            endDate: `${y}-06-30`,
-          },
-          {
-            year: y,
-            quarter: 3,
-            startDate: `${y}-07-01`,
-            endDate: `${y}-09-30`,
-          },
-          {
-            year: y,
-            quarter: 4,
-            startDate: `${y}-10-01`,
-            endDate: `${y}-12-31`,
-          },
-        );
-      }
-    } else {
-      // Fallback: Use a generic request if metadata extraction fails
-      chunks.push({ year: 0, quarter: 0, startDate: "", endDate: "" });
-    }
-
-    // Step 2: Parallel Extraction by Quarter
-    // 2.5 Flash has high rate limits, so parallel requests are efficient.
-    const chunkPromises = chunks.map((chunk) =>
-      extractTransactionsForChunk(ai, base64Data, mimeType, chunk),
+    const allTransactions: Transaction[] = result.transactions.sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
     );
 
-    const results = await Promise.all(chunkPromises);
-
-    // Step 3: Merge and Aggregate
-    const allTransactions: Transaction[] = results
-      .flat()
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-    // Filter duplicates (using ID or composite key)
+    // Filter duplicates (using ID or composite key) just in case, though less likely in single pass
     const uniqueTransactions = Array.from(
       new Map(
         allTransactions.map((item) => {
@@ -154,7 +78,7 @@ export const extractDataFromPDF = async (
     return {
       transactions: uniqueTransactions,
       totalAmount: totalAmount,
-      currency: metadata.currency || "EUR",
+      currency: result.currency || "EUR",
       documentDate: new Date().toISOString().split("T")[0],
     };
   } catch (error) {
@@ -163,47 +87,22 @@ export const extractDataFromPDF = async (
   }
 };
 
-async function getDocumentMetadata(
+async function extractAllTransactions(
   ai: GoogleGenAI,
   base64Data: string,
   mimeType: string,
-): Promise<DocMetadata> {
-  try {
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: {
-        parts: [
-          { inlineData: { mimeType, data: base64Data } },
-          {
-            text: "Analyze this document. Identify the start year and end year of the transactions listed. Also identify the currency. Return JSON.",
-          },
-        ],
-      },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: metadataSchema,
-        temperature: 0.1,
-      },
-    });
-
-    return JSON.parse(response.text || "{}") as DocMetadata;
-  } catch (e) {
-    console.warn("Metadata extraction failed, defaulting to single pass.", e);
-    return { startYear: 0, endYear: 0, currency: "EUR" };
-  }
-}
-
-async function extractTransactionsForChunk(
-  ai: GoogleGenAI,
-  base64Data: string,
-  mimeType: string,
-  range: DateRange,
-): Promise<Transaction[]> {
-  const isGeneric = range.year === 0;
-
-  const prompt = isGeneric
-    ? "Extract ALL financial transactions from this document. Return JSON."
-    : `Extract only the financial transactions that occurred between ${range.startDate} and ${range.endDate} (inclusive). Return JSON.`;
+): Promise<{ transactions: Transaction[]; currency: string }> {
+  const prompt = `
+    Extract ALL financial transactions from this document into a structured JSON format.
+    
+    Rules:
+    1. Extract every single transaction row found in the tables. Do not summarize.
+    2. Ensure the 'amount' is a number. Negative values (outflows) should be negative numbers.
+    3. Convert dates to YYYY-MM-DD format.
+    4. Identify the main currency of the document.
+    5. If a transaction ID is present, include it.
+    6. Ignore running balances or subtotal lines, only extract actual transaction rows.
+  `;
 
   try {
     const response = await ai.models.generateContent({
@@ -216,8 +115,8 @@ async function extractTransactionsForChunk(
       },
       config: {
         responseMimeType: "application/json",
-        responseSchema: chunkSchema,
-        temperature: 0.1,
+        responseSchema: extractionSchema,
+        temperature: 0.0, // Zero temperature for maximum determinism
         // @ts-ignore
         maxOutputTokens: 8192,
         safetySettings: [
@@ -241,16 +140,16 @@ async function extractTransactionsForChunk(
       },
     });
 
-    if (!response.text) return [];
+    if (!response.text) return { transactions: [], currency: "EUR" };
 
     const data = JSON.parse(response.text);
-    return data.transactions || [];
+    return {
+      transactions: data.transactions || [],
+      currency: data.currency || "EUR",
+    };
   } catch (e) {
-    console.error(
-      `Failed to extract data for ${range.year} Q${range.quarter}:`,
-      e,
-    );
-    return [];
+    console.error("Failed to extract data:", e);
+    throw e;
   }
 }
 
