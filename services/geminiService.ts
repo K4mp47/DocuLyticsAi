@@ -8,7 +8,7 @@ import {
 import { ExtractionResult, Transaction } from "@/types";
 
 // Using 2.5 flash lite for massive context window and high reliability on full documents
-const MODEL_NAME = "gemini-2.5-flash-lite";
+const MODEL_NAME = "gemini-3-flash-preview";
 
 // Schema for full extraction
 const extractionSchema: Schema = {

@@ -1,6 +1,6 @@
-import React, { useState, useCallback } from "react";
+import React, { useCallback, useState } from "react";
 import { extractDataFromPDF, fileToBase64 } from "./services/geminiService";
-import { Transaction, ExtractionResult, AppState } from "./types";
+import { AppState, ExtractionResult, Transaction } from "./types";
 import { SummaryCard } from "./components/SummaryCard";
 import { TransactionsTable } from "./components/TransactionsTable";
 import { Charts } from "./components/Charts";
@@ -146,7 +146,7 @@ function App() {
           </div>
           <div className="flex items-center space-x-4">
             <div className="hidden sm:block text-xs font-medium px-3 py-1 rounded-full bg-[#2C2C2C] border border-[#4A4A4A] text-[#A0A0A0]">
-              Powered by Gemini 2.5
+              Powered by Gemini 3
             </div>
           </div>
         </div>
@@ -197,7 +197,8 @@ function App() {
           {/* Loading State */}
           {appState === AppState.ANALYZING && (
             <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-8 animate-fade-in">
-              <style>{`
+              <style>
+                {`
                 @keyframes scan {
                   0%, 100% { top: 0%; opacity: 0; }
                   10% { opacity: 1; }
@@ -207,7 +208,8 @@ function App() {
                 .scan-line {
                   animation: scan 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
                 }
-              `}</style>
+              `}
+              </style>
               <div className="relative w-32 h-40 bg-[#2C2C2C] border-2 border-[#4A4A4A] rounded-[16px] overflow-hidden shadow-2xl flex flex-col p-4 space-y-3">
                 {/* Document Lines */}
                 <div className="w-3/4 h-2 bg-[#4A4A4A] rounded-full opacity-50"></div>
@@ -226,7 +228,7 @@ function App() {
                   Analyzing Document...
                 </h3>
                 <p className="text-[#A0A0A0]">
-                  Extracting financial data powered by Gemini 2.5
+                  Extracting financial data powered by Gemini 3
                 </p>
               </div>
             </div>
@@ -302,7 +304,9 @@ function App() {
                 />
                 <SummaryCard
                   title="Average Value"
-                  value={`${summary.currency} ${(summary.total / transactions.length).toFixed(2)}`}
+                  value={`${summary.currency} ${(
+                    summary.total / transactions.length
+                  ).toFixed(2)}`}
                   colorClass=""
                   icon={<ChartIcon />}
                 />
